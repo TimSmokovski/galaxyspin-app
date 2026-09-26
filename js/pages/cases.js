@@ -217,9 +217,11 @@ let pvpRefreshTimer = null;
 let pvpTickTimer = null;
 let pvpLocalTimeLeft = null;
 let _pvpBetMode = null; // 'new' | 'more' — секция ставки перерисовывается только при смене режима
+let _pvpWatch = null;   // {round, players, mine} — раунд, который сейчас на экране
 
 async function openPvp() {
   _pvpBetMode = null;
+  _pvpWatch = null;
   showModal(`
     ${sheetHead('PvP', 'Больше ставка — выше шанс забрать банк')}
     <div id="pvp-lobby-content">
@@ -295,25 +297,33 @@ async function pvpRefreshLobby() {
     return;
   }
 
-  // Авторазыгрывание с сервера
-  if (lobby.auto_resolved) {
+  const myId = window.appState?.id;
+
+  // Раунд на экране закончился: его разыграл этот запрос, сервер или другой игрок
+  const last = lobby.auto_resolved
+    || (_pvpWatch && lobby.round_id !== _pvpWatch.round && lobby.last_result?.round_id === _pvpWatch.round
+        ? lobby.last_result : null);
+  if (last && last.status !== 'refunded' && (lobby.auto_resolved || _pvpWatch.players >= 2)) {
     clearInterval(pvpRefreshTimer);
     clearInterval(pvpTickTimer);
-    const res = lobby.auto_resolved;
-    // Обновляем баланс если победили
-    if (res.winner_id == window.appState?.id) {
-      if (window.appState) window.appState.balance = (window.appState.balance || 0) + res.total_pot;
+    const iWon = last.winner_id == myId;
+    if (iWon && window.appState) {
+      window.appState.balance = (window.appState.balance || 0) + last.total_pot;
       updateBalance();
     }
     hideModal();
-    const iWon = res.winner_id == window.appState?.id;
-    showPvpWin(res, iWon);
+    showPvpWin(last, iWon);
     return;
   }
+  if (last && last.status === 'refunded' && last.user_id == myId && _pvpWatch?.mine) {
+    if (window.appState) window.appState.balance = (window.appState.balance || 0) + last.total_pot;
+    updateBalance();
+    showToast('Соперник не нашёлся — ставка вернулась на баланс');
+  }
 
-  const myId = window.appState?.id;
   const iAlreadyBet = lobby.players.some(p => p.user_id == myId);
   const playerCount = lobby.player_count || lobby.players.length;
+  _pvpWatch = { round: lobby.round_id, players: playerCount, mine: iAlreadyBet };
 
   // Синхронизируем локальный таймер
   if (lobby.time_left !== null && lobby.time_left !== undefined) {
@@ -400,13 +410,14 @@ function pvpSetBet(val) {
 async function doPvpBet() {
   const amount = parseInt(document.getElementById('pvp-bet-input')?.value) || pvpBetInput;
   if (amount < 10) { showToast('Минимум 10 звёзд'); return; }
-  if (amount > (window.appState?.balance ?? 0)) { showToast('Недостаточно звёзд'); return; }
+  const starsError = realStarsError(amount, 'в PvP');
+  if (starsError) { showToast(starsError); return; }
   const res = await API.pvpBet(amount);
   await doPvpBetCheck(res);
 }
 
 async function doPvpBetCheck(res) {
-  if (!res) { showToast('Ошибка — проверь баланс'); return; }
+  if (!res || res.__error) { showToast(res?.detail || 'Ошибка соединения'); return; }
   if (res.auto_resolved) {
     clearInterval(pvpRefreshTimer);
     const r = res.auto_resolved;
@@ -661,7 +672,6 @@ async function spinRoulette() {
   _rouletteSpinning = false;
   if (window.appState) window.appState.balance = res.new_balance;
   updateBalance();
-  if (res.won >= 100) API.recordWin('⭐', winItem.name, res.won);
 
   rouletteHistory.unshift(winItem.mult);
   rouletteHistory = rouletteHistory.slice(0, 6);
@@ -781,7 +791,6 @@ async function doSlotsSpin() {
     }
     if (window.appState) window.appState.balance = res.new_balance;
     updateBalance();
-    if (res.won >= 100) API.recordWin(results[0], 'Слоты', res.won);
     if (btn.isConnected) { btn.disabled = false; btn.innerHTML = _slotsBtnHtml(); }
     if (res.result === 'jackpot') showWin(res.won, 'Слоты · джекпот');
   }, 2700);
@@ -943,6 +952,8 @@ function crashSetBet(v) {
 }
 
 async function doCrashJoin() {
+  const starsError = realStarsError(crashMyBet, 'в Краше');
+  if (starsError) { showToast(starsError); return; }
   const btn = document.getElementById('btn-crash-join');
   if (btn) { btn.disabled = true; btn.textContent = 'Садимся…'; }
   const res = await API.crashBet(crashMyBet);
@@ -1230,7 +1241,6 @@ function _minerClick(i) {
       if (window.appState) window.appState.balance = res.new_balance;
       updateBalance();
       _minerRender();
-      if (res.won >= 100) API.recordWin('💎', 'Сапёр', res.won);
       showWin(res.won, 'Сапёр · все клетки открыты');
     } else if (res.result === 'lose') {
       // Мина - проигрыш
@@ -1261,7 +1271,6 @@ function _minerCashout() {
     _ms.active = false;
     if (window.appState) window.appState.balance = res.new_balance;
     updateBalance();
-    if (res.won >= 100) API.recordWin('💣', 'Сапёр', res.won);
     _minerRender();
     showWin(res.won, `Сапёр · ×${_ms.mult.toFixed(2)}`);
   }).catch(err => {

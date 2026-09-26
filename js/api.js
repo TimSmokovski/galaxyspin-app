@@ -37,7 +37,10 @@ async function apiCall(method, path, data = null) {
       return { __error: true, detail: data.detail || 'Ошибка' };
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const json = await res.json();
+    // Игровые ответы несут актуальную демо-часть баланса
+    if (typeof json?.demo_balance === 'number' && window.appState) window.appState.demo_balance = json.demo_balance;
+    return json;
   } catch (e) {
     console.warn('API error:', e);
     return null;
@@ -48,17 +51,14 @@ const API = {
   getMe: ()                     => apiCall('GET', '/users/me'),
   getLeaders: ()                => apiCall('GET', '/leaderboard'),
   getContests: ()               => apiCall('GET', '/contests'),
-  joinContest: (id)             => apiCall('POST', `/contests/${id}/join`),
   getTasks: ()                  => apiCall('GET', '/tasks'),
   completeTask: (id)            => apiCall('POST', `/tasks/${id}/complete`),
   getReferral: ()               => apiCall('GET', '/referral'),
   applyRef: (ref_id)           => apiCall('POST', '/ref/apply', { ref_id }),
   openCase: (type)              => apiCall('POST', '/cases/open', { type, ..._adminLuck() }),
   recentWins: ()                => apiCall('GET', '/cases/recent'),
-  recordWin: (emoji, name, stars) => apiCall('POST', '/cases/record_win', { emoji, name, stars }),
   pvpLobby: ()                  => apiCall('GET', '/pvp/lobby'),
   pvpBet: (amount)              => apiCall('POST', '/pvp/bet', { amount, ..._adminLuck() }),
-  pvpDraw: ()                   => apiCall('POST', '/pvp/draw'),
   spinRoulette: (bet, section) => {
     const data = { bet, section };
     const stored = localStorage.getItem('admin_luck_override');

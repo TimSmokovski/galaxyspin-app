@@ -155,7 +155,7 @@
     <div class="section">
       <div class="section-title">🔨 Бан / Разбан</div>
       <div class="ban-row">
-        <input type="text" id="ban-input" placeholder="username (без @)">
+        <input type="text" id="ban-input" placeholder="username (без @) или ID">
       </div>
       <div style="display:flex;gap:8px">
         <button class="danger" style="flex:1" onclick="banUser()">🔨 Забанить</button>
@@ -181,6 +181,41 @@
       <button onclick="resetAllBalances()" style="width:100%;background:#c0392b;color:#fff;border:none;padding:12px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer">🗑️ Обнулить всё и начать чисто</button>
     </div>
 
+    <!-- Конкурсы -->
+    <div class="section">
+      <div class="section-title">🏆 Конкурсы</div>
+      <input type="text" id="ct-title" placeholder="Название, например «Неделя ставок»" maxlength="80" style="margin-bottom:10px">
+      <div style="font-size:12px;color:#aaa;margin-bottom:6px">Рейтинг по</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button id="ct-metric-bets" onclick="ctMetric('bets')" style="flex:1">🎰 Сумме ставок</button>
+        <button id="ct-metric-deposits" onclick="ctMetric('deposits')" class="secondary" style="flex:1">💳 Сумме пополнений</button>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <div style="flex:1">
+          <div style="font-size:12px;color:#aaa;margin-bottom:6px">Порог участия, ⭐</div>
+          <input type="number" id="ct-min" value="500" min="0">
+        </div>
+        <div style="flex:1">
+          <div style="font-size:12px;color:#aaa;margin-bottom:6px">Длительность, часов</div>
+          <input type="number" id="ct-hours" value="168" min="1">
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;margin-bottom:12px">
+        <button class="secondary" style="flex:1;padding:7px;font-size:12px" onclick="ctHours(24)">1 день</button>
+        <button class="secondary" style="flex:1;padding:7px;font-size:12px" onclick="ctHours(72)">3 дня</button>
+        <button class="secondary" style="flex:1;padding:7px;font-size:12px" onclick="ctHours(168)">7 дней</button>
+        <button class="secondary" style="flex:1;padding:7px;font-size:12px" onclick="ctHours(720)">30 дней</button>
+      </div>
+      <div style="font-size:12px;color:#aaa;margin-bottom:6px">Призы по местам, ⭐ (через запятую: 1-е, 2-е, …)</div>
+      <input type="text" id="ct-prizes" value="1000, 500, 250" style="margin-bottom:12px">
+      <button onclick="createContest()" style="width:100%">🚀 Запустить конкурс</button>
+      <div style="font-size:11px;color:#666;margin:8px 0 14px;text-align:center">
+        Считаются только обычные звёзды с момента запуска. Админы и забаненные не участвуют.
+        В срок бот сам начислит призы и напишет победителям.
+      </div>
+      <div id="contests-admin-list"></div>
+    </div>
+
     <!-- Заявки на вывод -->
     <div class="section">
       <div class="section-title">📋 Заявки на вывод</div>
@@ -201,7 +236,7 @@
       <input type="range" id="global-luck-slider" min="0" max="100" value="50" oninput="onGlobalLuck(this.value)">
       <div class="luck-label"><span>0% — всегда проигрыш</span><span>100% — всегда выигрыш</span></div>
       <button onclick="saveGlobalChance()" style="width:100%">💾 Применить для всех</button>
-      <div style="font-size:11px;color:#666;margin-top:8px;text-align:center">Краш/PvP — для всех игроков (сервер). Рулетка/Слоты/Майнер/Апгрейд — только для тебя (локально).</div>
+      <div style="font-size:11px;color:#666;margin-top:8px;text-align:center">Базовый шанс выигрыша для всех игроков: рулетка, слоты, бесплатный кейс, краш. Сапёр и PvP от него не зависят.</div>
     </div>
   </div>
 
@@ -298,6 +333,11 @@
       }
     }
 
+    // Имена и username задают сами игроки — в HTML только через esc()
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
     function toast(msg, color) {
       const el = document.getElementById('toast');
       el.textContent = msg;
@@ -349,6 +389,7 @@
         loadGlobalChance();
         loadUsers();
         loadChannelTask();
+        loadContests();
 
       } catch(e) {
         console.error('[admin] doLogin error:', e);
@@ -427,7 +468,7 @@
     // ===== БАН / РАЗБАН =====
     async function banUser() {
       const username = document.getElementById('ban-input').value.trim().replace(/^@/, '');
-      if (!username) { toast('Введи username'); return; }
+      if (!username) { toast('Введи username или ID'); return; }
       const res = await api('POST', '/admin/ban', { username });
       if (res?.ok) {
         toast('🔨 @' + username + ' заблокирован', '#e74c3c');
@@ -440,7 +481,7 @@
 
     async function unbanUser() {
       const username = document.getElementById('ban-input').value.trim().replace(/^@/, '');
-      if (!username) { toast('Введи username'); return; }
+      if (!username) { toast('Введи username или ID'); return; }
       const res = await api('POST', '/admin/unban', { username });
       if (res?.ok) {
         toast('✅ @' + username + ' разблокирован', '#27ae60');
@@ -454,20 +495,20 @@
     // ===== ПОЛЬЗОВАТЕЛИ =====
     function renderUser(u) {
       _usersMap[u.id] = u;
-      const initial = (u.name || u.username || '?')[0].toUpperCase();
+      const initial = esc((u.name || u.username || '?')[0].toUpperCase());
       const isBanned = u.banned;
       return `
         <div class="user-card${isBanned ? ' banned-card' : ''}" id="user-${u.id}">
           <div class="user-avatar${isBanned ? ' banned-av' : ''}">${initial}</div>
           <div class="user-info">
-            <div class="user-name">${u.name || 'Без имени'}${isBanned ? ' 🔒' : ''}</div>
-            <div class="user-meta">${u.username ? '@' + u.username : ''} · ID: ${u.id}</div>
+            <div class="user-name">${esc(u.name || 'Без имени')}${isBanned ? ' 🔒' : ''}</div>
+            <div class="user-meta">${u.username ? '@' + esc(u.username) : ''} · ID: ${u.id}${u.demo_balance ? ` · демо ${(u.demo_balance).toLocaleString('ru')}` : ''}</div>
             <div class="user-actions">
               <button onclick="openGiveModal(${u.id})">⭐ Звёзды</button>
               <button class="secondary" onclick="resetCooldown(${u.id})">🔄 Сброс кейса</button>
               ${isBanned
-                ? `<button class="success" onclick="quickUnban('${u.username || ''}', ${u.id})">✅ Разбан</button>`
-                : `<button class="danger" onclick="quickBan('${u.username || ''}', ${u.id})">🔨 Бан</button>`
+                ? `<button class="success" onclick="quickUnban(${u.id})">✅ Разбан</button>`
+                : `<button class="danger" onclick="quickBan(${u.id})">🔨 Бан</button>`
               }
             </div>
           </div>
@@ -475,22 +516,21 @@
         </div>`;
     }
 
-    async function quickBan(username, userId) {
-      if (!username) { toast('У пользователя нет username'); return; }
-      const res = await api('POST', '/admin/ban', { username });
+    // Бан по ID — работает и для игроков без username
+    async function quickBan(userId) {
+      const res = await api('POST', '/admin/ban', { username: String(userId) });
       if (res?.ok) {
-        toast('🔨 @' + username + ' заблокирован', '#e74c3c');
+        toast('🔨 Игрок ' + userId + ' заблокирован', '#e74c3c');
         loadUsers(document.getElementById('search-input').value.trim());
       } else {
         toast('❌ ' + (res?.detail || 'Ошибка'), '#e74c3c');
       }
     }
 
-    async function quickUnban(username, userId) {
-      if (!username) { toast('У пользователя нет username'); return; }
-      const res = await api('POST', '/admin/unban', { username });
+    async function quickUnban(userId) {
+      const res = await api('POST', '/admin/unban', { username: String(userId) });
       if (res?.ok) {
-        toast('✅ @' + username + ' разблокирован', '#27ae60');
+        toast('✅ Игрок ' + userId + ' разблокирован', '#27ae60');
         loadUsers(document.getElementById('search-input').value.trim());
       } else {
         toast('❌ ' + (res?.detail || 'Ошибка'), '#e74c3c');
@@ -501,7 +541,7 @@
       const list = document.getElementById('user-list');
       const users = await api('GET', `/admin/users${q ? '?q=' + encodeURIComponent(q) : ''}`);
       if (!users || users.__error) {
-        list.innerHTML = `<div style="color:#e74c3c;font-size:13px">${users?.detail || 'Ошибка загрузки'}</div>`;
+        list.innerHTML = `<div style="color:#e74c3c;font-size:13px">${esc(users?.detail || 'Ошибка загрузки')}</div>`;
         return;
       }
       if (!users.length) {
@@ -642,13 +682,94 @@
       else toast('❌ ' + (r?.detail || 'Ошибка'), '#e74c3c');
     }
 
+    // ===== КОНКУРСЫ =====
+    let _ctMetric = 'bets';
+
+    function ctMetric(m) {
+      _ctMetric = m;
+      document.getElementById('ct-metric-bets').className = m === 'bets' ? '' : 'secondary';
+      document.getElementById('ct-metric-deposits').className = m === 'deposits' ? '' : 'secondary';
+    }
+
+    function ctHours(h) { document.getElementById('ct-hours').value = h; }
+
+    async function createContest() {
+      const title = document.getElementById('ct-title').value.trim();
+      const prizes = document.getElementById('ct-prizes').value
+        .split(/[,;\s]+/).filter(Boolean).map(Number);
+      if (!title) { toast('Введи название'); return; }
+      if (!prizes.length || prizes.some(p => !Number.isInteger(p) || p <= 0)) {
+        toast('Призы — целые числа через запятую'); return;
+      }
+      const body = {
+        title, metric: _ctMetric, prizes,
+        min_amount: parseInt(document.getElementById('ct-min').value) || 0,
+        duration_hours: parseInt(document.getElementById('ct-hours').value) || 0,
+      };
+      const total = prizes.reduce((a, b) => a + b, 0);
+      if (!confirm(`Запустить «${title}» на ${body.duration_hours} ч?
+Призовой фонд: ${total.toLocaleString('ru')} ⭐`)) return;
+      const r = await api('POST', '/admin/contests', body);
+      if (r?.ok) {
+        toast('🏆 Конкурс запущен', '#27ae60');
+        document.getElementById('ct-title').value = '';
+        loadContests();
+      } else toast('❌ ' + (r?.detail || 'Ошибка'), '#e74c3c');
+    }
+
+    async function loadContests() {
+      const list = document.getElementById('contests-admin-list');
+      const rows = await api('GET', '/admin/contests');
+      if (!rows || rows.__error) {
+        list.innerHTML = `<div style="color:#e74c3c;font-size:13px">${esc(rows?.detail || 'Ошибка')}</div>`;
+        return;
+      }
+      if (!rows.length) {
+        list.innerHTML = '<div style="color:#888;font-size:13px;text-align:center;padding:6px">Конкурсов ещё не было</div>';
+        return;
+      }
+      const statusLabel = { active: '🟢 Идёт', finished: '🏁 Завершён', cancelled: '⛔ Отменён' };
+      list.innerHTML = rows.map(c => `
+        <div style="background:#0f0a14;border-radius:10px;padding:12px;margin-bottom:8px">
+          <div style="display:flex;justify-content:space-between;gap:8px">
+            <div style="font-size:14px;font-weight:700">${esc(c.title)}</div>
+            <div style="font-size:12px;font-weight:700;white-space:nowrap">${statusLabel[c.status] || esc(c.status)}</div>
+          </div>
+          <div style="font-size:11px;color:#aaa;margin-top:4px">
+            ${esc(c.metric_label)} · от ${c.min_amount.toLocaleString('ru')} ⭐ · призы: ${c.prizes.map(p => p.toLocaleString('ru')).join(' / ')} ⭐
+          </div>
+          <div style="font-size:11px;color:#555;margin-top:2px">
+            ${esc(c.starts_at?.slice(0, 16))} → ${esc(c.ends_at?.slice(0, 16))} UTC${c.status === 'active' ? ` · в рейтинге: ${c.qualified}` : ''}
+          </div>
+          ${c.status === 'active' ? `
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="success" style="flex:1;font-size:12px;padding:7px" onclick="finishContest(${c.id})">🏁 Завершить сейчас</button>
+            <button class="danger" style="flex:1;font-size:12px;padding:7px" onclick="cancelContest(${c.id})">⛔ Отменить</button>
+          </div>` : ''}
+        </div>`).join('');
+    }
+
+    async function finishContest(id) {
+      if (!confirm('Завершить конкурс сейчас и выдать призы по текущему рейтингу?')) return;
+      const r = await api('POST', `/admin/contests/${id}/finish`);
+      if (r?.ok) { toast(`🏁 Завершён, победителей: ${r.winners.length}`, '#27ae60'); loadContests(); }
+      else toast('❌ ' + (r?.detail || 'Ошибка'), '#e74c3c');
+    }
+
+    async function cancelContest(id) {
+      if (!confirm('Отменить конкурс без выдачи призов?')) return;
+      const r = await api('POST', `/admin/contests/${id}/cancel`);
+      if (r?.ok) { toast('⛔ Конкурс отменён', '#e67e22'); loadContests(); }
+      else toast('❌ ' + (r?.detail || 'Ошибка'), '#e74c3c');
+    }
+
     // ===== WITHDRAWALS =====
     async function loadWithdrawals(status) {
       const list = document.getElementById('withdrawals-list');
       list.innerHTML = '<div style="color:#888;font-size:13px;text-align:center;padding:10px">Загрузка...</div>';
       const rows = await api('GET', `/admin/withdrawals${status ? '?status=' + status : ''}`);
       if (!rows || rows.__error) {
-        list.innerHTML = `<div style="color:#e74c3c;font-size:13px">${rows?.detail || 'Ошибка'}</div>`;
+        list.innerHTML = `<div style="color:#e74c3c;font-size:13px">${esc(rows?.detail || 'Ошибка')}</div>`;
         return;
       }
       if (!rows.length) {
@@ -661,8 +782,8 @@
         <div style="background:#0f0a14;border-radius:10px;padding:12px;margin-bottom:8px">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">
             <div>
-              <div style="font-size:14px;font-weight:700">${w.name || w.username || 'ID:' + w.user_id} · ⭐ ${(w.amount||0).toLocaleString('ru')}</div>
-              <div style="font-size:11px;color:#aaa;margin-top:2px">→ @${w.ton_address || '—'}</div>
+              <div style="font-size:14px;font-weight:700">${esc(w.name || w.username || 'ID:' + w.user_id)} · ⭐ ${(w.amount||0).toLocaleString('ru')}</div>
+              <div style="font-size:11px;color:#aaa;margin-top:2px">→ @${esc(w.ton_address || '—')}</div>
               <div style="font-size:11px;color:#555;margin-top:2px">${w.created_at?.slice(0,16).replace('T',' ')}</div>
             </div>
             <div style="font-size:12px;font-weight:700;color:${statusColor[w.status]||'#aaa'}">${statusLabel[w.status]||w.status}</div>

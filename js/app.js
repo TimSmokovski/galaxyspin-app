@@ -4,6 +4,7 @@ window.appState = {
   name: 'Игрок',
   avatar: '?',
   balance: 0,
+  demo_balance: 0,
 };
 
 const APP_BG = '#07060b';
@@ -305,6 +306,18 @@ async function confirmDeposit() {
 }
 
 // ===== BALANCE =====
+// Обычные звёзды — без демо (демо выдаёт админ, их нельзя вывести и ставить в PvP/Краше)
+function realBalance() {
+  return Math.max(0, (window.appState?.balance || 0) - (window.appState?.demo_balance || 0));
+}
+
+// Текст ошибки, если ставку в PvP/Краше не покрыть обычными звёздами; иначе null
+function realStarsError(amount, where) {
+  if (amount <= realBalance()) return null;
+  if (amount <= (window.appState?.balance || 0)) return `Демо-звёзды нельзя ставить ${where} — только обычные`;
+  return 'Недостаточно звёзд';
+}
+
 function updateBalance() {
   const el = document.getElementById('user-balance');
   if (el) el.textContent = fmt(window.appState.balance);
