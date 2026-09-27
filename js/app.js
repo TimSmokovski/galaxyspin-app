@@ -227,6 +227,7 @@ function showDepositModal() {
         <button class="dep-pkg" id="dep-pkg-${amt}" onclick="setDepositAmount(${amt})">${starImg(22)}${fmt(amt)}</button>
       `).join('')}
     </div>
+    ${_depositBonusHtml()}
     <span class="label">Своя сумма · от 50 до 100 000</span>
     <input id="deposit-input" class="input" type="number" min="50" max="100000" placeholder="Например: 300"
       oninput="onDepositInput(this)">
@@ -237,12 +238,37 @@ function showDepositModal() {
   `);
 }
 
+// Бонус за пополнение: от deposit_bonus_min ⭐ — ещё один бесплатный кейс, раз в день
+function _depositBonusMin() { return window.appState?.deposit_bonus_min || 100; }
+
+function _depositBonusHtml() {
+  const min = _depositBonusMin();
+  const ready = window.appState?.deposit_bonus_ready !== false;
+  return `
+    <div class="dep-bonus${ready ? '' : ' used'}" id="dep-bonus">
+      <svg class="dep-bonus-ico"><use href="#i-gift"/></svg>
+      <div class="dep-bonus-text">
+        <b>+1 бесплатный кейс</b>
+        <span>${ready
+          ? `Пополни от ${starImg(13)}${fmt(min)} — и открой кейс ещё раз. Раз в день`
+          : 'Бонус за сегодня уже получен — возвращайся завтра'}</span>
+      </div>
+      <div class="dep-bonus-check">${svgIcon('i-check')}</div>
+    </div>`;
+}
+
+function _updateDepositBonus(amount) {
+  const ready = window.appState?.deposit_bonus_ready !== false;
+  document.getElementById('dep-bonus')?.classList.toggle('on', ready && !!amount && amount >= _depositBonusMin());
+}
+
 function setDepositAmount(amount) {
   _depositAmount = amount;
   const input = document.getElementById('deposit-input');
   if (input) input.value = amount;
   _highlightDepositPkg(amount);
   _updateDepositBtn(amount);
+  _updateDepositBonus(amount);
 }
 
 function onDepositInput(input) {
@@ -250,6 +276,7 @@ function onDepositInput(input) {
   _depositAmount = (!isNaN(val) && val >= 50 && val <= 100000) ? val : null;
   _highlightDepositPkg(_depositAmount);
   _updateDepositBtn(_depositAmount);
+  _updateDepositBonus(_depositAmount);
 }
 
 function _highlightDepositPkg(amount) {
@@ -288,12 +315,18 @@ async function confirmDeposit() {
   if (res.invoice_link && tg?.openInvoice) {
     tg.openInvoice(res.invoice_link, async (status) => {
       if (status === 'paid') {
+        const before = window.appState?.bonus_cases || 0;
+        // Зачисление приходит через webhook — даём серверу секунду
+        await new Promise(r => setTimeout(r, 1200));
         const me = await API.getMe();
         if (me && !me.__error) {
-          window.appState.balance = me.balance;
+          window.appState = { ...window.appState, ...me };
           updateBalance();
+          if (typeof updateHeroBonus === 'function') updateHeroBonus();
         }
-        showToast('Оплачено! Баланс пополнен');
+        showToast((me?.bonus_cases || 0) > before
+          ? 'Оплачено! 🎁 +1 бесплатный кейс на главной'
+          : 'Оплачено! Баланс пополнен');
       } else if (status === 'cancelled') {
         showToast('Оплата отменена');
       } else if (status === 'failed') {

@@ -801,3 +801,32 @@ body::after {
 .ct-me p { font-size: 12px; color: var(--text-2); margin-top: 8px; line-height: 1.45; }
 .ct-head { margin-top: 10px; }
 #contests-list :is(.card-sub, .leader-user, .ct-me p, .empty) .star { margin: 0 2px 0 4px; }
+
+/* ===== БОНУС ЗА ПОПОЛНЕНИЕ ===== */
+.dep-bonus {
+  position: relative; display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px;
+  border-radius: 18px; overflow: hidden; border: 1px solid transparent;
+  background:
+    radial-gradient(120% 140% at 0% 50%, rgba(var(--gold-rgb), .16), transparent 60%) padding-box,
+    linear-gradient(var(--surface-2), var(--surface-2)) padding-box,
+    linear-gradient(90deg, rgba(var(--gold-rgb), .55), rgba(var(--violet-rgb), .45)) border-box;
+  transition: box-shadow .25s;
+}
+.dep-bonus-ico { width: 38px; height: 38px; flex-shrink: 0; filter: drop-shadow(0 0 10px rgba(224,75,255,.5)); animation: float 4s ease-in-out infinite; }
+.dep-bonus-text { flex: 1; min-width: 0; }
+.dep-bonus-text b { display: block; font-family: var(--display); font-weight: 700; font-size: 15px; text-transform: uppercase; letter-spacing: .03em; color: var(--gold-light); }
+.dep-bonus-text span { display: block; margin-top: 2px; font-size: 12px; line-height: 1.4; color: var(--text-2); }
+.dep-bonus-text .star { width: 13px; margin: 0 2px 0 3px; }
+.dep-bonus-check { width: 24px; height: 24px; flex-shrink: 0; display: grid; place-items: center; border-radius: 50%; background: rgba(var(--green-rgb), .15); color: var(--green); opacity: 0; transform: scale(.6); transition: opacity .25s, transform .25s; }
+.dep-bonus-check svg { width: 14px; height: 14px; }
+.dep-bonus.on { box-shadow: 0 0 22px rgba(var(--gold-rgb), .28); }
+.dep-bonus.on .dep-bonus-check { opacity: 1; transform: none; }
+.dep-bonus.used { filter: saturate(.35); opacity: .7; }
+.dep-bonus.used .dep-bonus-ico { animation: none; }
+
+.hero-bonus {
+  position: absolute; top: 14px; right: 14px; z-index: 2; display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px 0 8px; border-radius: 13px; font-size: 11.5px; font-weight: 800; color: #1a1204;
+  background: linear-gradient(180deg, #ffe08a, #ffb020); box-shadow: 0 0 16px rgba(var(--gold-rgb), .55);
+}
+.hero-bonus svg { width: 15px; height: 15px; }

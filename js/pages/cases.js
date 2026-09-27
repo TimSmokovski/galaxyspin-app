@@ -103,6 +103,7 @@ function renderCasesPage() {
       <svg class="spark" style="right:150px;top:34px;animation-delay:.3s"><use href="#i-spark"/></svg>
       <svg class="spark" style="right:30px;top:60px;width:9px;height:9px;animation-delay:1.1s"><use href="#i-spark"/></svg>
       <svg class="spark" style="right:128px;top:128px;width:8px;height:8px;animation-delay:1.8s"><use href="#i-spark"/></svg>
+      <div class="hero-bonus hidden" id="hero-bonus"></div>
       <div class="hero-text">
         <div class="eyebrow">КАЖДЫЙ ДЕНЬ</div>
         <h2>Бесплатный<br>кейс</h2>
@@ -125,6 +126,7 @@ function renderCasesPage() {
     </div>
   `;
   renderLiveBar();
+  updateHeroBonus();
 }
 
 // ===== REEL (бесплатный кейс и рулетка) =====
@@ -473,6 +475,15 @@ function openFreeCase() {
   _startReelIdle(document.getElementById('spin-track'), FREE_ITEMS.length);
 }
 
+// Бонусные кейсы за пополнение — отметка на карточке бесплатного кейса
+function updateHeroBonus() {
+  const el = document.getElementById('hero-bonus');
+  if (!el) return;
+  const n = window.appState?.bonus_cases || 0;
+  el.classList.toggle('hidden', n <= 0);
+  el.innerHTML = n > 0 ? `${svgIcon('i-gift')}+${n} бонусный` : '';
+}
+
 async function doFreeSpin() {
   const btn = document.getElementById('btn-spin');
   btn.disabled = true;
@@ -500,9 +511,18 @@ async function doFreeSpin() {
       ? `<span class="result-chip">${starImg(18)}+${winItem.stars} звёзд</span>`
       : `<span class="result-chip lose">Пусто — повезёт завтра</span>`;
   }
-  if (btn.isConnected) btn.innerHTML = '<span class="btn-t">Завтра снова</span>';
+  if (btn.isConnected) {
+    // Остался бонусный кейс за пополнение — его можно открыть сразу
+    if ((res.bonus_cases || 0) > 0) {
+      btn.disabled = false;
+      btn.innerHTML = `<span class="btn-t">Открыть бонусный · ${res.bonus_cases}</span>`;
+    } else {
+      btn.innerHTML = '<span class="btn-t">Завтра снова</span>';
+    }
+  }
   if (res.new_balance !== undefined && window.appState) window.appState.balance = res.new_balance;
   updateBalance();
+  updateHeroBonus();
   if (winItem.rarity === 'epic') showWin(winItem.stars, 'Бесплатный кейс');
 }
 

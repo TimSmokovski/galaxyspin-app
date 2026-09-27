@@ -40,6 +40,7 @@ async function apiCall(method, path, data = null) {
     const json = await res.json();
     // Игровые ответы несут актуальную демо-часть баланса
     if (typeof json?.demo_balance === 'number' && window.appState) window.appState.demo_balance = json.demo_balance;
+    if (typeof json?.bonus_cases === 'number' && window.appState) window.appState.bonus_cases = json.bonus_cases;
     return json;
   } catch (e) {
     console.warn('API error:', e);
@@ -113,5 +114,5 @@ const MOCK = {
     { id: 2, host: 'Мария', avatar: 'М', bet: 500 },
     { id: 3, host: 'Иван', avatar: 'И', bet: 250 },
   ],
-  referral: { friends: 0, earned: 0 },
+  referral: { friends: 0, earned: 0, percent: 5 },
 };

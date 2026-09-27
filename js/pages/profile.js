@@ -34,7 +34,7 @@ async function renderProfilePage() {
     </div>
 
     <div class="card ref-card">
-      <h2>Приглашай друзей и получай <span class="hl">10%</span> от их пополнений</h2>
+      <h2>Приглашай друзей и получай <span class="hl">${ref.percent ?? 5}%</span> от их пополнений</h2>
       <p>Реферальный бонус начисляется автоматически и навсегда — за каждого приглашённого друга.</p>
       <div class="ref-stats">
         <div class="ref-stat">
